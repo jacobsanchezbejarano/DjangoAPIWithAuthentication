@@ -1,11 +1,16 @@
+from django.shortcuts import get_object_or_404
 from rest_framework import generics
 from .models import MenuItem, Category
 from .serializers import MenuItemSerializer, CategorySerializer
+from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.throttling import AnonRateThrottle
 from rest_framework.throttling import UserRateThrottle
+
+from rest_framework.permissions import IsAdminUser
+from django.contrib.auth.models import User, Group
 
 
 class CategoriesView(generics.ListCreateAPIView):
@@ -47,3 +52,24 @@ def throttle_check(request):
 @throttle_classes({UserRateThrottle})
 def throttle_check_auth(request):
     return Response({"message": "Logged in only"})
+
+
+@api_view()
+@permission_classes([IsAuthenticated])
+def me(request):
+    return Response(request.user.email)
+
+
+@api_view(['POST'])
+@permission_classes({IsAdminUser})
+def managers(request):
+    username = request.data['username']
+    if username:
+        user = get_object_or_404(User, username=username)
+        managers = Group.objects.get(name="Manager")
+        if request.method == 'POST':
+            managers.user_set.add(user)
+        elif request.method == 'DELETE':
+            managers.user_set.remove(user)
+        return Response({"message": "OK"})
+    return Response({"message": "Error"}, status.HTTP_400_BAD_REQUEST)
